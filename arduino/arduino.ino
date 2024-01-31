@@ -1,12 +1,16 @@
 #include <DS3231.h>
-#include <DFRobot_sim808.h>
+#include <DFRobot_SIM808.h>
 #include <SoftwareSerial.h>
 #include <SD.h>
 #include "ELMduino.h"
 #include <MPU6050.h>
+#include <Wire.h>
 
 
-DS3231 rtc(2, 3);
+DS3231 rtc;
+
+
+// DS3231 rtc(SDA, SCL);
 SoftwareSerial mySerial(10, 11); //sim808 serial
 DFRobot_SIM808 sim808(&mySerial);  //Connect RX,TX,PWR, 
 SoftwareSerial obdSerial(0,1); // RX, TX obd
@@ -27,7 +31,7 @@ int messageIndex = 0;
 char phone[16];
 char datetime[24];
 String date;
-String time;
+String timez;
 char MESSAGE[300];
 float lat, lon, speed;
 ELM327 myELM327;
@@ -40,7 +44,8 @@ int gx, gy, gz;
 
 
 void setup() {
-  rtc.begin();
+  Wire.begin();
+
   mySerial.begin(9600);
   Serial.begin(9600);
 
@@ -60,8 +65,11 @@ void setup() {
   Serial.println("Sim808 init success");
 
   //******** Set Date and Time *************
-  rtc.setDate(16, 6, 2023);
-  rtc.setTime(12, 19, 30);
+  // Illustrate passing the date in a variable
+byte theDate = 5; // the 5th day of the month
+rtc.setDate(theDate); // uploads 5 to register 0x04
+  // rtc.setDate(16, 6, 2023);
+  // rtc.setTime(12, 19, 30);
 
   //************* Turn on the GPS power************
   if (sim808.attachGPS()){
@@ -96,6 +104,9 @@ void setup() {
 }
 
 
+bool CenturyBit;
+bool h12;
+bool hPM;
 
 
 void loop() {
@@ -105,12 +116,14 @@ void loop() {
     delay(2000);
     sensorValue = analogRead(sensorPin);
     gyro();
-    date = rtc.getDateStr();
-    time = rtc.getTimeStr();
+   date = String(rtc.getDate());
+date = date + ":" + String(rtc.getMonth(CenturyBit));
+date = date + ":" + String(rtc.getYear());
+  timez= String(rtc.getHour(h12,hPM))+":"+String(rtc.getMinute())+":"+String(rtc.getSecond());
     Serial.print("date: ");
     Serial.println(date);
     Serial.print("time: ");
-    Serial.println(time);
+    Serial.println(timez);
     messageIndex = sim808.isSMSunread();
     Serial.print("messageIndex: ");
     Serial.println(messageIndex);
@@ -154,7 +167,7 @@ void fileWrite() {
   if (dataFile) {
     dataFile.print(date);
     dataFile.print(",");
-    dataFile.print(time);
+    dataFile.print(timez);
     dataFile.print(",");
     dataFile.print(latStr);  
     dataFile.print(",");  
@@ -262,7 +275,7 @@ void upload() {
   delay(4000);
   ShowSerialData();
 
-  String str = "GET https://api.thingspeak.com/update?api_key=DTUJH2YW8QKCOG4F&field1=" + String(latStr) + "&field2=" + String(lonStr) + "&field3=" + time + "&field4=" + date + "&field5=" + speed+ "&field6=" + sensorValue+ "&field7=" + rpm+"&field8=" + fuel;
+  String str = "GET https://api.thingspeak.com/update?api_key=DTUJH2YW8QKCOG4F&field1=" + String(latStr) + "&field2=" + String(lonStr) + "&field3=" + timez + "&field4=" + date + "&field5=" + speed+ "&field6=" + sensorValue+ "&field7=" + rpm+"&field8=" + fuel;
   str.replace("field1= ", "field1=");  // remove the space between the latitude/longitude and "&field3"
 
   Serial.println(str);
